@@ -1,0 +1,21 @@
+name: Validate database
+
+on:
+  pull_request:
+    paths:
+      - database.txt
+      - release-notes/**
+      - scripts/**
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate database
+        run: node scripts/validate-database.js database.txt
