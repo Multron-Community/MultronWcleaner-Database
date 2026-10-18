@@ -7,25 +7,34 @@ on:
       - database.txt
       - release-notes/**
       - scripts/**
+      - update-key.pub
       - .github/workflows/release.yml
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  release:
+  plan:
+    name: Check and prepare
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      skip: ${{ steps.plan.outputs.skip }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      title: ${{ steps.plan.outputs.title }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
 
@@ -49,19 +58,64 @@ jobs:
           LATEST_NAME: ${{ steps.latest.outputs.name }}
         run: node scripts/prepare-release.js --latest-name "$LATEST_NAME" --previous .previous/database.txt --out .release/body.md
 
-      - name: Publish release
+      - name: Collect the release files
         if: steps.plan.outputs.skip == 'false'
+        run: |
+          mkdir -p release-files
+          cp database.txt release-files/database.txt
+          cp .release/body.md release-files/body.md
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: steps.plan.outputs.skip == 'false'
+        with:
+          name: release-files
+          path: release-files/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Sign, attest & publish
+    needs: plan
+    if: needs.plan.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    environment: release-signing
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-files
+          path: release-files
+
+      - name: Sign the database
         env:
-          TAG: ${{ steps.plan.outputs.tag }}
-          TITLE: ${{ steps.plan.outputs.title }}
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: node scripts/sign-release.js release-files "$VERSION"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be
+        with:
+          subject-path: release-files/database.txt
+
+      - name: Publish release
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+          TITLE: ${{ needs.plan.outputs.title }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "::error::A release with tag $TAG already exists. Use a higher version in release-notes/."
             exit 1
           fi
-          gh release create "$TAG" database.txt \
+          gh release create "$TAG" release-files/database.txt release-files/update.json release-files/update.json.sig \
             --title "$TITLE" \
-            --notes-file .release/body.md \
+            --notes-file release-files/body.md \
             --target "$GITHUB_SHA" \
             --latest
           echo "Published $TITLE: $(gh release view "$TAG" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"

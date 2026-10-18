@@ -35,3 +35,15 @@ node scripts/validate-database.js
 ## Releases
 
 Releases are published automatically. Add a file named after the next version to [`release-notes/`](release-notes/README.md) and push to `main`.
+
+## Signed releases
+
+Every release is signed. The **Release database** workflow checks `database.txt` without any secrets; a second job in the protected `release-signing` environment then signs exactly that file and publishes it with:
+
+- `database.txt`, the only `.txt` file, so older versions of the app keep working;
+- `update.json`, the version and the SHA-256 of `database.txt`;
+- `update.json.sig`, the ECDSA P-256 signature of `update.json`, and a GitHub build attestation.
+
+Multron Win Cleaner 1.26.5 and later have the public key built in (`update-key.pub` here) and refuse a database whose signature, version or SHA-256 does not match. Check a download with `node scripts/verify-update.js update.json update.json.sig database.txt`.
+
+**For maintainers:** the key was created with `node scripts/update-keys.js`. The private key is the `UPDATE_SIGNING_KEY` secret of this repository's `release-signing` environment and is never committed. Keep an offline backup: the app only accepts databases signed with this key.
