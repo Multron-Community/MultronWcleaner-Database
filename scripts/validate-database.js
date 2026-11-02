@@ -36,9 +36,12 @@ function validate(text) {
 
     if (line.startsWith('{')) {
       if (section) error(`section "${section.name}" is not closed before a new one starts`);
-      const name = line.slice(2).trim();
+      const [name = '', kind, processes, ...extra] = line.slice(2).split('=').map(s => s.trim());
       if (!line.startsWith('{=') || !name) error('a section must start with {=Name');
-      else if (name.includes('=')) error(`section name "${name}" must not contain "="`);
+      else if (kind !== undefined && kind !== 'browser' && kind !== 'app') error(`section "${name}": unknown tag "${kind}" (use "browser" or "app")`);
+      else if (extra.length > 0) error(`section "${name}": too many "=" signs in the section line`);
+      else if (processes !== undefined && !processes.split(',').every(p => /^[\w .-]+\.exe$/i.test(p.trim())))
+        error(`section "${name}": process names must be a comma-separated list of .exe files`);
       else if (sectionLines.has(name.toLowerCase())) error(`section "${name}" already exists on line ${sectionLines.get(name.toLowerCase())}`);
       section = { name, line: n, count: 0, profileRoot: false, subPaths: new Set() };
       sections.push(section);
@@ -67,7 +70,7 @@ function validate(text) {
       if (!section.profileRoot) error(`${name}: #profileget# needs a #profile#= line earlier in the section`);
       if (!parts[2] || !parts[2].startsWith('\\')) error(`${name}: profile sub-path must start with "\\"`);
       if (!/^(true|false)$/.test(parts[3] || '')) error(`${name}: the value after the sub-path must be true or false`);
-      if (parts.length > 4) error(`${name}: too many "=" signs`);
+      if (parts.length > 5) error(`${name}: too many "=" signs`);
       const key = (parts[2] || '').toLowerCase();
       if (section.subPaths.has(key)) error(`${name}: profile sub-path ${parts[2]} is listed twice in this section`);
       section.subPaths.add(key);
