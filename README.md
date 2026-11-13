@@ -21,6 +21,7 @@ WindowsSoftwareDistributionData=C:\Windows\SoftwareDistribution\DataStore=false
 
 - `{=Name` starts a group and `}` ends it. Group names must be unique.
 - A web browser group is tagged in its first line: `{=Google Chrome=browser=chrome.exe`. An app that keeps its files locked while it runs uses `app` instead: `{=Discord=app=discord.exe`. After the name come the tag and the program name (several are separated by commas; it can be left out). The app uses this to see whether the program is open before cleaning it. Do not tag programs that other apps run, such as Microsoft Edge WebView2. Older versions of the app only read the name and ignore the tag.
+- Every app group ends with its category, so the app can show it in the right group of Cleaning Selections: `{=Spotify=category:media` or `{=Discord=app=discord.exe=category:communication`. The categories are `browsers`, `communication`, `media`, `office`, `development`, `games`, `security`, `tools` and `other`. Windows groups and groups tagged `browser` do not need one. A group without a category is shown under Other Applications.
 - Each entry is `Name=Path=true` or `Name=Path=false`. `true` means the entry is selected by default.
 - An entry that deletes personal data or files Windows needs gets a warning as a last field: `Name=Path=false=Signs you out of websites` (or `Name=#profileget#=\Sub=false=Warning` in browser groups). Use one of the warnings already in the file, so the app can show it in every language.
 - `{##}` in a path is replaced with each Windows user name.

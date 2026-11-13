@@ -13,6 +13,8 @@ const PROTECTED = [
   'C:\\Users\\{##}\\Pictures', 'C:\\Users\\{##}\\Videos', 'C:\\Users\\{##}\\Music', 'C:\\Users\\{##}\\OneDrive',
 ].map(p => normalize(p));
 
+const CATEGORIES = ['browsers', 'communication', 'media', 'office', 'development', 'games', 'security', 'tools', 'other'];
+
 function normalize(p) {
   return p.toLowerCase().replace(/\\+$/, '') || p.toLowerCase();
 }
@@ -36,8 +38,13 @@ function validate(text) {
 
     if (line.startsWith('{')) {
       if (section) error(`section "${section.name}" is not closed before a new one starts`);
-      const [name = '', kind, processes, ...extra] = line.slice(2).split('=').map(s => s.trim());
-      if (!line.startsWith('{=') || !name) error('a section must start with {=Name');
+      const fields = line.slice(2).split('=').map(s => s.trim());
+      let category;
+      if (fields.length > 1 && /^category:/i.test(fields[fields.length - 1])) category = fields.pop().slice('category:'.length).toLowerCase();
+      const [name = '', kind, processes, ...extra] = fields;
+      if (category !== undefined && !CATEGORIES.includes(category)) error(`section "${name}": unknown category "${category}" (use ${CATEGORIES.join(', ')})`);
+      else if (fields.some(f => /^category:/i.test(f))) error(`section "${name}": the category must be the last part of the section line`);
+      else if (!line.startsWith('{=') || !name) error('a section must start with {=Name');
       else if (kind !== undefined && kind !== 'browser' && kind !== 'app') error(`section "${name}": unknown tag "${kind}" (use "browser" or "app")`);
       else if (extra.length > 0) error(`section "${name}": too many "=" signs in the section line`);
       else if (processes !== undefined && !processes.split(',').every(p => /^[\w .-]+\.exe$/i.test(p.trim())))
